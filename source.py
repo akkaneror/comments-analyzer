@@ -44,9 +44,19 @@ def get_authenticated_service(args):
     if credentials is None or credentials.invalid:
         credentials = run_flow(flow, storage, args)
 
-    with open("youtube-v3-discoverydocument.json", "r", encoding="utf-8", errors='ignore') as f:
+    with open("youtube-v3-discoverydocument.json", "r", encoding='utf-8') as f:
         doc = f.read()
         return build_from_document(doc, http=credentials.authorize(httplib2.Http()))
+
+def get_statistics_views(youtube,video_id,token=""):
+    response = youtube.videos().list(
+    part='statistics, snippet',
+    id=video_id).execute()
+
+    view_count = response['items'][0]['statistics']['viewCount']
+    like_count = response['items'][0]['statistics']['likeCount']
+    dislike_count = response['items'][0]['statistics']['dislikeCount']
+    return view_count,like_count,dislike_count
 
 def get_comment_threads(youtube, video_id, comments=[], token=""):
     results = youtube.commentThreads().list(
@@ -66,6 +76,24 @@ def get_comment_threads(youtube, video_id, comments=[], token=""):
     else:
         return comments
 
+def get_comment_count_threads(youtube, video_id, comments_count=[], token=""):
+    results = youtube.commentThreads().list(
+        part="snippet",
+        pageToken=token,
+        videoId=video_id,
+        textFormat="plainText"
+    ).execute()
+
+    for item in results["items"]:
+        comment_count = item["snippet"]["topLevelComment"]
+        like_count = comment_count["snippet"]["likeCount"]
+        comments_count.append(like_count)
+
+    if "nextPageToken" in results:
+        return get_comment_count_threads(youtube, video_id, comments_count, results["nextPageToken"])
+    else:
+        return comments_count
+
 if __name__ == "__main__":
   argparser.add_argument("--videoid",
     help="Required; ID for video for which the comment will be inserted.")
@@ -77,12 +105,19 @@ if __name__ == "__main__":
   youtube = get_authenticated_service(args)
   try:
     video_comment_threads = get_comment_threads(youtube, args.videoid)
+    video_comment_count_threads = get_comment_count_threads(youtube, args.videoid)
+    a,b,c = get_statistics_views(youtube, args.videoid)
     sia = SentimentIntensityAnalyzer()
-    with open('compounds.csv', 'w', encoding="utf-8", errors="ignore") as csvfile:
+    with open('compounds.csv', 'w', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
-        for comment in video_comment_threads:
+        #view counts , likes ,dislikes
+        writer.writerow([a,b,c])
+        for i in range(0,len(video_comment_threads)):
+            comment = video_comment_threads[i]
             score = sia.polarity_scores(comment)
-            writer.writerow([comment, score["compound"]])
+            comment_count = video_comment_count_threads[i]
+            writer.writerow([comment,score["compound"],comment_count])
+
     print("Logged sentiments of {0} comments to compounds.csv".format(len(video_comment_threads)))
   except HttpError as e:
     print("An HTTP error %d occurred:\n%s" % (e.resp.status, e.content))
