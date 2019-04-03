@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 # Usage example:
 # python comments.py --videoid='<video_id>'
 
@@ -42,7 +44,7 @@ def get_authenticated_service(args):
     if credentials is None or credentials.invalid:
         credentials = run_flow(flow, storage, args)
 
-    with open("youtube-v3-discoverydocument.json", "r") as f:
+    with open("youtube-v3-discoverydocument.json", "r", encoding="utf-8", errors='ignore') as f:
         doc = f.read()
         return build_from_document(doc, http=credentials.authorize(httplib2.Http()))
 
@@ -65,7 +67,7 @@ def get_comment_threads(youtube, video_id, comments=[], token=""):
         return comments
 
 if __name__ == "__main__":
-  argparser.add_argument("--videoidpyth",
+  argparser.add_argument("--videoid",
     help="Required; ID for video for which the comment will be inserted.")
   args = argparser.parse_args()
 
@@ -76,7 +78,7 @@ if __name__ == "__main__":
   try:
     video_comment_threads = get_comment_threads(youtube, args.videoid)
     sia = SentimentIntensityAnalyzer()
-    with open('compounds.csv', 'w') as csvfile:
+    with open('compounds.csv', 'w', encoding="utf-8", errors="ignore") as csvfile:
         writer = csv.writer(csvfile)
         for comment in video_comment_threads:
             score = sia.polarity_scores(comment)
